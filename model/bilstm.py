@@ -3,6 +3,8 @@
 # @Date:   2017-10-17 16:47:32
 # @Last Modified by:   Jie Yang,     Contact: jieynlp@gmail.com
 # @Last Modified time: 2018-05-03 21:58:36
+# @Last Modified by:   meng        (change python and pytorch edition)
+# @Last Modified time: 2019-09-30 17:15:00
 import torch
 import torch.autograd as autograd
 import torch.nn as nn
@@ -10,21 +12,21 @@ import torch.nn.functional as F
 import numpy as np
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 # from kblayer import GazLayer
-from charbilstm import CharBiLSTM
-from charcnn import CharCNN
-from latticelstm import LatticeLSTM
+from .charbilstm import CharBiLSTM
+from .charcnn import CharCNN
+from .latticelstm import LatticeLSTM
 
 class BiLSTM(nn.Module):
     def __init__(self, data):
         super(BiLSTM, self).__init__()
-        print "build batched bilstm..."
-        self.use_bigram = data.use_bigram
-        self.gpu = data.HP_gpu
-        self.use_char = data.HP_use_char
-        self.use_gaz = data.HP_use_gaz
-        self.batch_size = data.HP_batch_size
-        self.char_hidden_dim = 0
-        if self.use_char:
+        print("build batched bilstm...")
+        self.use_bigram = data.use_bigram #False no bigram??
+        self.gpu = data.HP_gpu        #True
+        self.use_char = data.HP_use_char #False
+        self.use_gaz = data.HP_use_gaz  #True
+        self.batch_size = data.HP_batch_size #1
+        self.char_hidden_dim = 0       # ???
+        if self.use_char:           # char_feature???
             self.char_hidden_dim = data.HP_char_hidden_dim
             self.char_embedding_dim = data.char_emb_dim
             if data.char_features == "CNN":
@@ -32,17 +34,17 @@ class BiLSTM(nn.Module):
             elif data.char_features == "LSTM":
                 self.char_feature = CharBiLSTM(data.char_alphabet.size(), self.char_embedding_dim, self.char_hidden_dim, data.HP_dropout, self.gpu)
             else:
-                print "Error char feature selection, please check parameter data.char_features (either CNN or LSTM)."
+                print("Error char feature selection, please check parameter data.char_features (either CNN or LSTM).")
                 exit(0)
-        self.embedding_dim = data.word_emb_dim
-        self.hidden_dim = data.HP_hidden_dim
+        self.embedding_dim = data.word_emb_dim # 50
+        self.hidden_dim = data.HP_hidden_dim  # 200
         self.drop = nn.Dropout(data.HP_dropout)
         self.droplstm = nn.Dropout(data.HP_dropout)
         self.word_embeddings = nn.Embedding(data.word_alphabet.size(), self.embedding_dim)
         self.biword_embeddings = nn.Embedding(data.biword_alphabet.size(), data.biword_emb_dim)
-        self.bilstm_flag = data.HP_bilstm
+        self.bilstm_flag = data.HP_bilstm   #True
         # self.bilstm_flag = False
-        self.lstm_layer = data.HP_lstm_layer
+        self.lstm_layer = data.HP_lstm_layer # 1
         if data.pretrain_word_embedding is not None:
             self.word_embeddings.weight.data.copy_(torch.from_numpy(data.pretrain_word_embedding))
         else:
@@ -62,9 +64,10 @@ class BiLSTM(nn.Module):
         lstm_input = self.embedding_dim + self.char_hidden_dim
         if self.use_bigram:
             lstm_input += data.biword_emb_dim
-        self.forward_lstm = LatticeLSTM(lstm_input, lstm_hidden, data.gaz_dropout, data.gaz_alphabet.size(), data.gaz_emb_dim, data.pretrain_gaz_embedding, True, data.HP_fix_gaz_emb, self.gpu)
+        # data.HP_fix_gaz_emb = False
+        self.forward_lstm = LatticeLSTM(lstm_input, lstm_hidden, data.gaz_dropout, data.gaz_alphabet.size(), data.gaz_emb_dim, data.pretrain_gaz_embedding, True, data.HP_fix_gaz_emb, self.gpu)   
         if self.bilstm_flag:
-            self.backward_lstm = LatticeLSTM(lstm_input, lstm_hidden, data.gaz_dropout, data.gaz_alphabet.size(), data.gaz_emb_dim, data.pretrain_gaz_embedding, False, data.HP_fix_gaz_emb, self.gpu)
+            self.backward_lstm = LatticeLSTM(lstm_input, lstm_hidden, data.gaz_dropout, data.gaz_alphabet.size(), data.gaz_emb_dim, data.pretrain_gaz_embedding, False, data.HP_fix_gaz_emb, self.gpu)  
         # self.lstm = nn.LSTM(lstm_input, lstm_hidden, num_layers=self.lstm_layer, batch_first=True, bidirectional=self.bilstm_flag)
 
         # The linear layer that maps from hidden state space to tag space
@@ -163,7 +166,3 @@ class BiLSTM(nn.Module):
         ## filter padded position with zero
         decode_seq = mask.long() * tag_seq
         return decode_seq
-
-
-
-
