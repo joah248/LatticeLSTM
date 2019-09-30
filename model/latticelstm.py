@@ -1,3 +1,5 @@
+# @Last Modified by:   meng        (change python and pytorch edition)
+# @Last Modified time: 2019-09-30 17:15:00
 """Implementation of batch-normalized LSTM."""
 import torch
 from torch import nn
@@ -59,7 +61,7 @@ class WordLSTMCell(nn.Module):
         bias_batch = (self.bias.unsqueeze(0).expand(batch_size, *self.bias.size()))
         wh_b = torch.addmm(bias_batch, h_0, self.weight_hh)
         wi = torch.mm(input_, self.weight_ih)
-        f, i, g = torch.split(wh_b + wi, split_size=self.hidden_size, dim=1)
+        f, i, g = torch.split(wh_b + wi, split_size_or_sections=self.hidden_size, dim=1)
         c_1 = torch.sigmoid(f)*c_0 + torch.sigmoid(i)*torch.tanh(g)
         return c_1
 
@@ -137,13 +139,14 @@ class MultiInputLSTMCell(nn.Module):
         bias_batch = (self.bias.unsqueeze(0).expand(batch_size, *self.bias.size()))
         wh_b = torch.addmm(bias_batch, h_0, self.weight_hh)
         wi = torch.mm(input_, self.weight_ih)
-        i, o, g = torch.split(wh_b + wi, split_size=self.hidden_size, dim=1)
-        i = torch.sigmoid(i)
-        g = torch.tanh(g)
-        o = torch.sigmoid(o)
-        c_num = len(c_input)
+        #i, o, g = torch.split(wh_b + wi, split_size=self.hidden_size, dim=1)
+        i, o, g = torch.split(wh_b + wi, split_size_or_sections=self.hidden_size, dim=1)
+        i = torch.sigmoid(i)  # input gate
+        g = torch.tanh(g)    # new temporary memory cell 
+        o = torch.sigmoid(o)  # ouput gate
+        c_num = len(c_input)  # latent words (end in char) for char cell representation
         if c_num == 0:
-            f = 1 - i
+            f = 1 - i      # forget gate = 1 - input_gate
             c_1 = f*c_0 + i*g
             h_1 = o * torch.tanh(c_1)
         else:
@@ -160,7 +163,7 @@ class MultiInputLSTMCell(nn.Module):
             alpha = torch.div(alpha, alpha_sum)
             merge_i_c = torch.cat([g, c_input_var],0)
             c_1 = merge_i_c * alpha
-            c_1 = c_1.sum(0).unsqueeze(0)
+            c_1 = c_1.sum(0).unsqueeze(0)   # equation 15
             h_1 = o * torch.tanh(c_1)
         return h_1, c_1
 
@@ -176,12 +179,12 @@ class LatticeLSTM(nn.Module):
     def __init__(self, input_dim, hidden_dim, word_drop, word_alphabet_size, word_emb_dim, pretrain_word_emb=None, left2right=True, fix_word_emb=True, gpu=True,  use_bias = True):
         super(LatticeLSTM, self).__init__()
         skip_direction = "forward" if left2right else "backward"
-        print "build LatticeLSTM... ", skip_direction, ", Fix emb:", fix_word_emb, " gaz drop:", word_drop
+        print("build LatticeLSTM... ", skip_direction, ", Fix emb:", fix_word_emb, " gaz drop:", word_drop)
         self.gpu = gpu
         self.hidden_dim = hidden_dim
         self.word_emb = nn.Embedding(word_alphabet_size, word_emb_dim)
         if pretrain_word_emb is not None:
-            print "load pretrain word emb...", pretrain_word_emb.shape
+            print("load pretrain word emb...", pretrain_word_emb.shape)
             self.word_emb.weight.data.copy_(torch.from_numpy(pretrain_word_emb))
 
         else:
@@ -213,6 +216,7 @@ class LatticeLSTM(nn.Module):
             skip_input_list: [skip_input, volatile_flag]
             skip_input: three dimension list, with length is seq_len. Each element is a list of matched word id and its length. 
                         example: [[], [[25,13],[2,3]]] 25/13 is word id, 2,3 is word length . 
+            skip_input == gaz_list
         """
         volatile_flag = skip_input_list[1]
         skip_input = skip_input_list[0]
@@ -293,6 +297,3 @@ def convert_forward_gaz_to_backward(forward_gaz):
                 else:
                     backward_gaz[new_pos] = [[the_id],[the_length]]
     return backward_gaz
-
-
-
