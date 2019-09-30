@@ -3,9 +3,12 @@
 # @Date:   2017-06-15 14:23:06
 # @Last Modified by:   Jie Yang,     Contact: jieynlp@gmail.com
 # @Last Modified time: 2018-05-12 22:09:37
+# @Last Modified by:   meng        (change python and pytorch edition)
+# @Last Modified time: 2019-09-30 17:15:00
+
 import sys
 import numpy as np
-from alphabet import Alphabet
+from .alphabet import Alphabet
 NULLKEY = "-null-"
 def normalize_word(word):
     new_word = ""
@@ -140,16 +143,19 @@ def read_instance_with_gaz(input_file, gaz, word_alphabet, biword_alphabet, char
     biword_Ids = []
     char_Ids = []
     label_Ids = []
-    for idx in xrange(len(in_lines)):
+    #for idx in xrange(len(in_lines)):
+    for idx in range(len(in_lines)):
         line = in_lines[idx]
         if len(line) > 2:
             pairs = line.strip().split()
-            word = pairs[0].decode('utf-8')
+            #word = pairs[0].decode('utf-8')
+            word = pairs[0]           
             if number_normalized:
                 word = normalize_word(word)
             label = pairs[-1]
             if idx < len(in_lines) -1 and len(in_lines[idx+1]) > 2:
-                biword = word + in_lines[idx+1].strip().split()[0].decode('utf-8')
+                biword = word + in_lines[idx+1].strip().split()[0]
+                #biword = word + in_lines[idx+1].strip().split()[0].decode('utf-8')
             else:
                 biword = word + NULLKEY
             biwords.append(biword)
@@ -326,10 +332,11 @@ def load_pretrain_emb(embedding_path):
                 assert (embedd_dim + 1 == len(tokens))
             embedd = np.empty([1, embedd_dim])
             embedd[:] = tokens[1:]
-            embedd_dict[tokens[0].decode('utf-8')] = embedd
+            #embedd_dict[tokens[0].decode('utf-8')] = embedd
+            embedd_dict[tokens[0]] = embedd
     return embedd_dict, embedd_dim
 
 if __name__ == '__main__':
     a = np.arange(9.0)
-    print a
-    print norm2one(a)
+    print(a)
+    print(norm2one(a))
