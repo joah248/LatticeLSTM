@@ -3,6 +3,8 @@
 # @Date:   2017-12-04 23:19:38
 # @Last Modified by:   Jie Yang,     Contact: jieynlp@gmail.com
 # @Last Modified time: 2018-05-27 22:48:17
+# @Last Modified by:   meng        (change python and pytorch edition)
+# @Last Modified time: 2019-09-30 17:15:00
 import torch
 import torch.autograd as autograd
 import torch.nn as nn
@@ -30,7 +32,7 @@ class CRF(nn.Module):
 
     def __init__(self, tagset_size, gpu):
         super(CRF, self).__init__()
-        print "build batched crf..."
+        print("build batched crf...")
         self.gpu = gpu
         # Matrix of transition parameters.  Entry i,j is the score of transitioning *to* i *from* j.
         self.average_batch = False
@@ -70,7 +72,8 @@ class CRF(nn.Module):
         scores = scores.view(seq_len, batch_size, tag_size, tag_size)
         # build iter
         seq_iter = enumerate(scores)
-        _, inivalues = seq_iter.next()  # bat_size * from_target_size * to_target_size
+        #_, inivalues = seq_iter.next()  # bat_size * from_target_size * to_target_size
+        _, inivalues = seq_iter.__next__()  # bat_size * from_target_size * to_target_size
         # only need start from start_tag
         partition = inivalues[:, START_TAG, :].clone().view(batch_size, tag_size, 1)  # bat_size * to_target_size
 
@@ -137,10 +140,12 @@ class CRF(nn.Module):
         
         ##  reverse mask (bug for mask = 1- mask, use this as alternative choice)
         # mask = 1 + (-1)*mask
-        mask =  (1 - mask.long()).byte()
-        _, inivalues = seq_iter.next()  # bat_size * from_target_size * to_target_size
+        mask =  (1 - mask.long()).byte()  # 0?
+        #_, inivalues = seq_iter.next()  # bat_size * from_target_size * to_target_size
+        _, inivalues = seq_iter.__next__()  # bat_size * from_target_size * to_target_size
         # only need start from start_tag
-        partition = inivalues[:, START_TAG, :].clone().view(batch_size, tag_size, 1)  # bat_size * to_target_size
+        #partition = inivalues[:, START_TAG, :].clone().view(batch_size, tag_size, 1)  # bat_size * to_target_size
+        partition = inivalues[:, START_TAG, :].clone().view(batch_size, tag_size)  # bat_size * to_target_size
         partition_history.append(partition)
         # iter over last scores
         for idx, cur_values in seq_iter:
@@ -172,14 +177,14 @@ class CRF(nn.Module):
         ## select end ids in STOP_TAG
         pointer = last_bp[:, STOP_TAG]
         insert_last = pointer.contiguous().view(batch_size,1,1).expand(batch_size,1, tag_size)
-        back_points = back_points.transpose(1,0).contiguous()
+        back_points = back_points.transpose(1,0).contiguous()  # batch_size, seq_len, tag_size
         ## move the end ids(expand to tag_size) to the corresponding position of back_points to replace the 0 values
         # print "lp:",last_position
         # print "il:",insert_last
-        back_points.scatter_(1, last_position, insert_last)
+        back_points.scatter_(1, last_position, insert_last)   
         # print "bp:",back_points
         # exit(0)
-        back_points = back_points.transpose(1,0).contiguous()
+        back_points = back_points.transpose(1,0).contiguous()  # back to: seq_len, batch_size,tag_size
         ## decode from the end, padded position ids are 0, which will be filtered if following evaluation
         decode_idx = autograd.Variable(torch.LongTensor(seq_len, batch_size))
         if self.gpu:
@@ -261,27 +266,3 @@ class CRF(nn.Module):
             return (forward_score - gold_score)/batch_size
         else:
              return forward_score - gold_score
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
