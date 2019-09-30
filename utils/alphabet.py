@@ -2,7 +2,8 @@
 # @Author: Max
 # @Date:   2018-01-19 11:33:37
 # @Last Modified by:   Jie Yang,     Contact: jieynlp@gmail.com
-# @Last Modified time: 2018-01-19 11:33:56
+# @Last Modified by:   meng        (change python and pytorch edition)
+# @Last Modified time: 2019-09-30 17:15:00
 
 
 """
@@ -70,7 +71,8 @@ class Alphabet:
         return len(self.instances) + 1
 
     def iteritems(self):
-        return self.instance2index.iteritems()
+        #return self.instance2index.iteritems()
+        return self.instance2index.items()
 
     def enumerate_items(self, start=1):
         if start < 1 or start >= self.size():
