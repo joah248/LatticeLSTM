@@ -2,7 +2,8 @@
 # @Author: Jie
 # @Date:   2017-06-15 14:11:08
 # @Last Modified by:   Jie Yang,     Contact: jieynlp@gmail.com
-# @Last Modified time: 2018-07-06 11:08:27
+# @Last Modified by:   meng        (change python and pytorch edition)
+# @Last Modified time: 2019-09-30 17:15:00
 
 import time
 import sys
@@ -11,7 +12,8 @@ import random
 import copy
 import torch
 import gc
-import cPickle as pickle
+#import cPickle as pickle
+import pickle
 import torch.autograd as autograd
 import torch.nn as nn
 import torch.nn.functional as F
@@ -99,21 +101,25 @@ def save_data_setting(data, save_file):
     new_data.test_Ids = []
     new_data.raw_Ids = []
     ## save data settings
-    with open(save_file, 'w') as fp:
-        pickle.dump(new_data, fp)
-    print "Data setting saved to file: ", save_file
+    #with open(save_file, 'w') as fp:
+    #     pickle.dump(new_data, fp)
+    with open(save_file, 'wb') as fp:
+        pickle.dump(new_data, fp, 0) 
+    print("Data setting saved to file: ", save_file)
 
 
 def load_data_setting(save_file):
-    with open(save_file, 'r') as fp:
+    with open(save_file, 'rb') as fp:
         data = pickle.load(fp)
-    print "Data setting loaded from file: ", save_file
+    #with open(save_file, 'r') as fp:
+    #    data = pickle.load(fp)
+    print("Data setting loaded from file: ", save_file)
     data.show_data_summary()
     return data
 
 def lr_decay(optimizer, epoch, decay_rate, init_lr):
     lr = init_lr * ((1-decay_rate)**epoch)
-    print " Learning rate is setted as:", lr
+    print(" Learning rate is setted as:", lr)
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
     return optimizer
@@ -130,7 +136,7 @@ def evaluate(data, model, name):
     elif name == 'raw':
         instances = data.raw_Ids
     else:
-        print "Error: wrong evaluate name,", name
+        print("Error: wrong evaluate name,", name)
     right_token = 0
     whole_token = 0
     pred_results = []
@@ -177,13 +183,17 @@ def batchify_with_label(input_batch_list, gpu, volatile_flag=False):
             mask: (batch_size, max_sent_len) 
     """
     batch_size = len(input_batch_list)
-    words = [sent[0] for sent in input_batch_list]
-    biwords = [sent[1] for sent in input_batch_list]
-    chars = [sent[2] for sent in input_batch_list]
-    gazs = [sent[3] for sent in input_batch_list]
-    labels = [sent[4] for sent in input_batch_list]
-    word_seq_lengths = torch.LongTensor(map(len, words))
-    max_seq_len = word_seq_lengths.max()
+    words = [sent[0] for sent in input_batch_list]  # 1-gram(chars) sequence
+    biwords = [sent[1] for sent in input_batch_list] # 2-gram
+    chars = [sent[2] for sent in input_batch_list]  # 1-gram list
+    #chars = []
+    #for sent in input_batch_list:
+    #    chars.append(sent[2])
+    gazs = [sent[3] for sent in input_batch_list]  # possible words/terms
+    labels = [sent[4] for sent in input_batch_list] # label sequence
+    #word_seq_lengths = torch.LongTensor(map(len, words))
+    word_seq_lengths = torch.LongTensor(list(map(len, words))) 
+    max_seq_len = word_seq_lengths.max()         # max sentence's length(characters) in the batch (batch_size =1)
     word_seq_tensor = autograd.Variable(torch.zeros((batch_size, max_seq_len)), volatile =  volatile_flag).long()
     biword_seq_tensor = autograd.Variable(torch.zeros((batch_size, max_seq_len)), volatile =  volatile_flag).long()
     label_seq_tensor = autograd.Variable(torch.zeros((batch_size, max_seq_len)),volatile =  volatile_flag).long()
@@ -192,8 +202,9 @@ def batchify_with_label(input_batch_list, gpu, volatile_flag=False):
         word_seq_tensor[idx, :seqlen] = torch.LongTensor(seq)
         biword_seq_tensor[idx, :seqlen] = torch.LongTensor(biseq)
         label_seq_tensor[idx, :seqlen] = torch.LongTensor(label)
-        mask[idx, :seqlen] = torch.Tensor([1]*seqlen)
-    word_seq_lengths, word_perm_idx = word_seq_lengths.sort(0, descending=True)
+        #mask[idx, :seqlen] = torch.Tensor([1]*seqlen)
+        mask[idx, :seqlen] = torch.ones(seqlen)
+    word_seq_lengths, word_perm_idx = word_seq_lengths.sort(0, descending=True) # char sequence length in the batch is descending 
     word_seq_tensor = word_seq_tensor[word_perm_idx]
     biword_seq_tensor = biword_seq_tensor[word_perm_idx]
     ## not reorder label
@@ -201,9 +212,14 @@ def batchify_with_label(input_batch_list, gpu, volatile_flag=False):
     mask = mask[word_perm_idx]
     ### deal with char
     # pad_chars (batch_size, max_seq_len)
-    pad_chars = [chars[idx] + [[0]] * (max_seq_len-len(chars[idx])) for idx in range(len(chars))]
-    length_list = [map(len, pad_char) for pad_char in pad_chars]
-    max_word_len = max(map(max, length_list))
+    #pad_chars = [torch.tensor(chars[idx]) + torch.zeros(max_seq_len-len(chars[idx])) for idx in range(len(chars))]
+    # len(chars) = 1  <-- batch_size = 1
+    pad_chars = [chars[idx] + np.zeros(max_seq_len-len(chars[idx])) if max_seq_len>len(chars[idx]) else chars[idx] for idx in range(len(chars))]
+    #pad_chars = [chars[idx] + [[0]] * (max_seq_len-len(chars[idx])) for idx in range(len(chars))]
+    #pad_chars = [chars[idx] + [[0]] * (self.MAX_SENTENCE_LENGTH-len(chars[idx])) for idx in range(len(chars))]       
+    length_list = [list(map(len, pad_char)) for pad_char in pad_chars]
+    #length_list = [map(len, pad_char) for pad_char in pad_chars]
+    max_word_len = max(map(max, length_list))    # 1
     char_seq_tensor = autograd.Variable(torch.zeros((batch_size, max_seq_len, max_word_len)), volatile =  volatile_flag).long()
     char_seq_lengths = torch.LongTensor(length_list)
     for idx, (seq, seqlen) in enumerate(zip(pad_chars, char_seq_lengths)):
@@ -222,24 +238,24 @@ def batchify_with_label(input_batch_list, gpu, volatile_flag=False):
     gaz_list = [ gazs[i] for i in word_perm_idx]
     gaz_list.append(volatile_flag)
     if gpu:
-        word_seq_tensor = word_seq_tensor.cuda()
-        biword_seq_tensor = biword_seq_tensor.cuda()
-        word_seq_lengths = word_seq_lengths.cuda()
+        word_seq_tensor = word_seq_tensor.cuda()     # 1-gram sequence [1, seq_length]
+        biword_seq_tensor = biword_seq_tensor.cuda()  # 2-gram sequence
+        word_seq_lengths = word_seq_lengths.cuda()   # char(1-gram) sentence's length (batch_size = 1)
         word_seq_recover = word_seq_recover.cuda()
-        label_seq_tensor = label_seq_tensor.cuda()
-        char_seq_tensor = char_seq_tensor.cuda()
+        label_seq_tensor = label_seq_tensor.cuda()   # label sequence
+        char_seq_tensor = char_seq_tensor.cuda()    # char sequence [seq_length, 1]
         char_seq_recover = char_seq_recover.cuda()
-        mask = mask.cuda()
+        mask = mask.cuda()                   # all the elements is 1.
     return gaz_list, word_seq_tensor, biword_seq_tensor, word_seq_lengths, word_seq_recover, char_seq_tensor, char_seq_lengths, char_seq_recover, label_seq_tensor, mask
 
 
 def train(data, save_model_dir, seg=True):
-    print "Training model..."
+    print("Training model...")
     data.show_data_summary()
     save_data_name = save_model_dir +".dset"
     save_data_setting(data, save_data_name)
     model = SeqModel(data)
-    print "finished built model."
+    print("finished built model.")
     loss_function = nn.NLLLoss()
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     optimizer = optim.SGD(parameters, lr=data.HP_lr, momentum=data.HP_momentum)
@@ -260,7 +276,7 @@ def train(data, save_model_dir, seg=True):
         whole_token = 0
         random.shuffle(data.train_Ids)
         ## set model in train model
-        model.train()
+        model.train()      #??? need this?
         model.zero_grad()
         batch_size = 1 ## current only support batch size = 1 to compulate and accumulate to data.HP_batch_size update weights
         batch_id = 0
@@ -319,9 +335,9 @@ def train(data, save_model_dir, seg=True):
 
         if current_score > best_dev:
             if seg:
-                print "Exceed previous best f score:", best_dev
+                print("Exceed previous best f score:", best_dev)
             else:
-                print "Exceed previous best acc score:", best_dev
+                print("Exceed previous best acc score:", best_dev)
             model_name = save_model_dir +'.'+ str(idx) + ".model"
             torch.save(model.state_dict(), model_name)
             best_dev = current_score 
@@ -338,7 +354,7 @@ def train(data, save_model_dir, seg=True):
 
 def load_model_decode(model_dir, data, name, gpu, seg=True):
     data.HP_gpu = gpu
-    print "Load Model from file: ", model_dir
+    print("Load Model from file: ", model_dir)
     model = SeqModel(data)
     ## load model need consider if the model trained in GPU and load in CPU, or vice versa
     # if not gpu:
@@ -401,20 +417,20 @@ if __name__ == '__main__':
     # char_emb = None
     #bichar_emb = None
 
-    print "CuDNN:", torch.backends.cudnn.enabled
+    print("CuDNN:", torch.backends.cudnn.enabled)
     # gpu = False
-    print "GPU available:", gpu
-    print "Status:", status
-    print "Seg: ", seg
-    print "Train file:", train_file
-    print "Dev file:", dev_file
-    print "Test file:", test_file
-    print "Raw file:", raw_file
-    print "Char emb:", char_emb
-    print "Bichar emb:", bichar_emb
-    print "Gaz file:",gaz_file
+    print("GPU available:", gpu)
+    print("Status:", status)
+    print("Seg: ", seg)
+    print("Train file:", train_file)
+    print("Dev file:", dev_file)
+    print("Test file:", test_file)
+    print("Raw file:", raw_file)
+    print("Char emb:", char_emb)
+    print("Bichar emb:", bichar_emb)
+    print("Gaz file:",gaz_file)
     if status == 'train':
-        print "Model saved to:", save_model_dir
+        print("Model saved to:", save_model_dir)
     sys.stdout.flush()
     
     if status == 'train':
@@ -446,8 +462,4 @@ if __name__ == '__main__':
         decode_results = load_model_decode(model_dir, data, 'raw', gpu, seg)
         data.write_decoded_results(output_file, decode_results, 'raw')
     else:
-        print "Invalid argument! Please use valid arguments! (train/test/decode)"
-
-
-
-
+        print("Invalid argument! Please use valid arguments! (train/test/decode)")
