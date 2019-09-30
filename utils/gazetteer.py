@@ -1,4 +1,6 @@
-from trie import Trie 
+# @Last Modified by:   meng        (change python and pytorch edition)
+# @Last Modified time: 2019-09-30 17:15:00
+from .trie import Trie 
 
 class Gazetteer:
     def __init__(self, lower):
@@ -38,12 +40,8 @@ class Gazetteer:
         string = self.space.join(word_list)
         if string in self.ent2type:
             return self.ent2type[string]
-        print  "Error in finding entity type at gazetteer.py, exit program! String:", string
+        print("Error in finding entity type at gazetteer.py, exit program! String:", string)
         exit(0)
 
     def size(self):
         return len(self.ent2type)
-
-
-
-
